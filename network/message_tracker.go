@@ -29,27 +29,78 @@ func NewMessageTracker(length int) MessageTracker {
 }
 
 func newNoopMessageTracker(length int) *nopMessageTracker {
-	return &nopMessageTracker{}
+	// listOfMessages := make([]Message, length)
+	return &nopMessageTracker{
+		capacity: length,
+		message:  nil,
+		size:     0,
+	}
 }
 
-type nopMessageTracker struct{}
+type nopMessageTracker struct {
+	capacity int
+	message  []*Message
+	size     int
+}
 
 // Add will add a message to the tracker, deleting the oldest message if necessary.
 func (dmt *nopMessageTracker) Add(message *Message) (err error) {
+	//check for the duplicate message
+	_, err = getMessageIndexByID(message.ID, dmt.message)
+	if err == nil {
+		return
+	}
+	err = nil
+
+	//check if the size of the list of message is full
+	//if yes, then delete the oldest
+	if dmt.capacity == dmt.size {
+		dmt.message = append(dmt.message[:0], dmt.message[1:]...)
+	}
+
+	//add the incoming message to the last of the list of messages
+	dmt.message = append(dmt.message, message)
+
+	//keep the size of the list of messages updated
+	dmt.size = len(dmt.message)
 	return
 }
 
 // Delete will delete a message from tracker
 func (dmt *nopMessageTracker) Delete(id string) (err error) {
+	//check for the index of the message
+	key, err := getMessageIndexByID(id, dmt.message)
+	if err != nil {
+		return err
+	}
+	//delete the messages by keeping the list of messages ordered
+	dmt.message = append(dmt.message[:key], dmt.message[key+1:]...)
+
+	//keep the size of the list of messages updated
+	dmt.size = len(dmt.message)
 	return
 }
 
 // Get returns a message for a given ID.  Message is retained in tracker
 func (dmt *nopMessageTracker) Message(id string) (message *Message, err error) {
-	return
+	//check for the index of the message
+	key, err := getMessageIndexByID(id, dmt.message)
+	if err != nil {
+		return nil, err
+	}
+
+	return dmt.message[key], nil
 }
 
 // All returns messages in the order in which they were received
 func (dmt *nopMessageTracker) Messages() (messages []*Message) {
-	return
+	return dmt.message
+}
+func getMessageIndexByID(id string, mt []*Message) (int, error) {
+	for key, value := range mt {
+		if value.ID == id {
+			return key, nil
+		}
+	}
+	return -1, ErrMessageNotFound
 }
